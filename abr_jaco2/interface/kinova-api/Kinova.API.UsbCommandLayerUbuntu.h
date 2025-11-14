@@ -69,7 +69,7 @@
 #define CARTESIAN_SIZE 6
 
 //This represents the max actuator count in our context.
-#define MAX_ACTUATORS 6
+#define MAX_ACTUATORS 7
 
 //This represents the max actuator count in our context.
 #define MAX_INVENTORY 15

@@ -1,18 +1,20 @@
 #include "jaco2_rs485.h"
 const unsigned char Jaco2::CONTROL_MODE = 0x01;
-const unsigned char Jaco2::HAND_ADDRESS[3] = {0x16, 0x17, 0x18};
-const float Jaco2::MAX_TORQUE[6] = {40.0, 80.0, 40.0, 20.0, 20.0, 20.0};  // in Nm
-const unsigned char Jaco2::JOINT_ADDRESS[6] = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15};
-const unsigned char Jaco2::TORQUE_DAMPING[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-//const short Jaco2::TORQUE_KP[6] = {1, 1.5, 1, 1.75, 1.75, 1.75};
-const short Jaco2::TORQUE_KP[6] = {1000, 1500, 1000, 1750, 1750, 1750};
-//const short Jaco2::TORQUE_KP[6] = {0, 0, 0, 0, 0, 0};
-// const short Jaco2::TORQUE_KP[6] = {150, 150, 150, 300, 300, 300};
-const short Jaco2::TORQUE_KI[6] = {0, 0, 0, 0, 0, 0};
-const short Jaco2::TORQUE_KD[6] = {20, 20, 20, 20, 20, 20};
-//const short Jaco2::TORQUE_KD[6] = {0, 0, 0, 0, 0, 0};
+const unsigned char Jaco2::HAND_ADDRESS[3] = {0x16, 0x17, 0x18}; //maybe wrong?
+const float Jaco2::MAX_TORQUE[7] = {30.0, 30.0, 30.0, 30.0, 6.8, 6.8, 6.8};  // in Nm // software limited per spec sheet https://drive.google.com/file/d/1zIWP6OSXGFw63DdBFXqRiZNRYVB08PcC/view
+const unsigned char Jaco2::JOINT_ADDRESS[7] = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x19};
+const unsigned char Jaco2::TORQUE_DAMPING[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//const short Jaco2::TORQUE_KP[7] = {1, 1.5, 1, 1.75, 1.75, 1.75};
+const short Jaco2::TORQUE_KP[7] = {1000, 1500, 1750, 1000, 1750, 1750, 1750};
+//const short Jaco2::TORQUE_KP[7] = {0, 0, 0, 0, 0, 0};
+// const short Jaco2::TORQUE_KP[7] = {150, 150, 150, 300, 300, 300};
+const short Jaco2::TORQUE_KI[7] = {0, 0, 0, 0, 0, 0, 0};
+const short Jaco2::TORQUE_KD[7] = {20, 20, 20, 20, 20, 20, 20};
+//const short Jaco2::TORQUE_KD[7] = {0, 0, 0, 0, 0, 0};
+
 
 Jaco2::Jaco2(int a_display_error_level) {
+    cout << "Logging Level " << a_display_error_level << endl;
     // get current date and time for error logging
     time_t rawtime;
     struct tm * timeinfo;
@@ -38,22 +40,22 @@ Jaco2::Jaco2(int a_display_error_level) {
 
     ctr = 0;
     //set common variables
-    delay = 1250;
+    delay = 1550;
     updated_sum = 0; //tracks the sum of motor feedback to know when we receive from all
-    packets_sent = 6;
-    packets_read = 18; //3 responses (14, 15, 16) expected per motor
-    current_motor = 6; // only 6 joints so if source address is not < 6 after
+    packets_sent = 7;
+    packets_read = 21; //3 responses (14, 15, 16) expected per motor
+    current_motor = 7; // only 7 joints so if source address is not < 7 after
                       // reading should receive error due do array size
     display_error_level = a_display_error_level;
-    types.push_back("DEBUG");
-    types.push_back("INFO");
-    types.push_back("WARNING");
-    types.push_back("ERROR");
+    types.push_back("DEBUG"); //3
+    types.push_back("INFO"); //2
+    types.push_back("WARNING"); //1
+    types.push_back("ERROR"); //0
 
     // get the current date and time
     // TODO: get date and time with ctime for first line of log and name of
     // file
-    memset(updated, 0, (size_t)sizeof(int)*6);
+    memset(updated, 0, (size_t)sizeof(int)*7);
     memset(updated_hand, 0, (size_t)sizeof(int)*3);
     memset(pos_finger, 0.0, (size_t)sizeof(float)*3);
 
@@ -72,6 +74,8 @@ Jaco2::Jaco2(int a_display_error_level) {
     error_message.push_back("COMMAND");
     error_message.push_back("CURRENT");
     error_message.push_back("TORQUE");
+  
+
 
     //We load the API.
     commLayer_Handle = dlopen(
@@ -100,7 +104,7 @@ Jaco2::Jaco2(int a_display_error_level) {
 
     // Set up static parts of messages sent across
     // Set up the message used by SendTargetAngles
-    for (int ii = 0; ii<6; ii++) {
+    for (int ii = 0; ii<7; ii++) {
         target_angles_message[ii].Command = POSITION_COMMAND;
         target_angles_message[ii].SourceAddress = SOURCE_ADDRESS;
         target_angles_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -117,7 +121,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the message used by SendTargetAngles
-    for (int ii = 0; ii<6; ii++) {
+    for (int ii = 0; ii<7; ii++) {
         clear_error_message[ii].Command = CLEAR_ERROR_FLAG;
         clear_error_message[ii].SourceAddress = SOURCE_ADDRESS;
         clear_error_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -129,14 +133,14 @@ Jaco2::Jaco2(int a_display_error_level) {
 
     // set constants in force message to increase loop speed
     // NOTE: this is how the documentation says to set up, but getting torque er
-    // for (int ii=0; ii<6; ii++) {
+    // for (int ii=0; ii<7; ii++) {
     //     force_message[ii].Command =
     //         RS485_MSG_SEND_POSITION_AND_TORQUE_COMMAND;
     //     force_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
     //     force_message[ii].SourceAddress = SOURCE_ADDRESS;
     //     force_message[ii].DataFloat[0] = 0x00000000; //not used
     //     force_message[ii].DataFloat[1] = 0x00000000; //not used
-    //     force_message[ii].DataLong[2] = //U16|U16
+    //     force_message[ii].DataLong[2] = //U17|U16
     //         ((unsigned long) TORQUE_KP[ii] << 16) |
     //         ((unsigned long) TORQUE_DAMPING[ii]);
     //     force_message[ii].DataLong[3] =
@@ -146,7 +150,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     //         ((unsigned long) CONTROL_MODE);
     // }
     // NOTE THIS IS HOW IT WAS SET BEFORE AND NO TORQUE ERRORS
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         force_message[ii].Command =
             RS485_MSG_SEND_POSITION_AND_TORQUE_COMMAND;
         force_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -159,7 +163,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up get position message
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         get_position_message[ii].Command = 0x0001;
         get_position_message[ii].SourceAddress = SOURCE_ADDRESS;
         get_position_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -169,7 +173,7 @@ Jaco2::Jaco2(int a_display_error_level) {
         get_position_message[ii].DataLong[3] = 0x00000000;
      }
 
-    // Set up get position message
+    // Set up get position message for the hand
     for (int ii=0; ii<3; ii++) {
         get_position_hand_message[ii].Command = 0x0001;
         get_position_hand_message[ii].SourceAddress = SOURCE_ADDRESS;
@@ -181,7 +185,7 @@ Jaco2::Jaco2(int a_display_error_level) {
      }
 
     // Set up robot initialization message
-    for (int ii = 0; ii<6; ii++) {
+    for (int ii = 0; ii<7; ii++) {
         //Initialize the INIT message
         init_message[ii].Command = RS485_MSG_GET_ACTUALPOSITION;
         init_message[ii].SourceAddress = SOURCE_ADDRESS;//0 means the API
@@ -195,7 +199,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up initialize position mode message
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         init_position_message[ii].Command = SWITCH_CONTROL_MODE_REQUEST;
         init_position_message[ii].SourceAddress = SOURCE_ADDRESS;
         init_position_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -208,7 +212,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the initialize torque mode message
-    for(int ii=0; ii<6; ii++) {
+    for(int ii = 0; ii < 7; ii++) {
         init_torque_message[ii].Command = SWITCH_CONTROL_MODE_REQUEST;
         init_torque_message[ii].SourceAddress = SOURCE_ADDRESS;
         init_torque_message[ii].DestinationAddress = JOINT_ADDRESS[ii];//DESTINATION_ADDRESS;
@@ -220,7 +224,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set torque safety parameters
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         safety_message[ii].Command = SEND_TORQUE_CONFIG_SAFETY;
         safety_message[ii].SourceAddress = SOURCE_ADDRESS;
         safety_message[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -232,7 +236,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the test torque message
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         test_torques_message[ii].Command =
             RS485_MSG_SEND_POSITION_AND_TORQUE_COMMAND;
         test_torques_message[ii].SourceAddress = SOURCE_ADDRESS;
@@ -246,7 +250,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the torque config feedforward advanced message
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         torques_config_feedforward_advanced_message[ii].Command =
             SEND_TORQUE_CONFIG_FEEDFORWARD_ADVANCED;
         torques_config_feedforward_advanced_message[ii].SourceAddress = SOURCE_ADDRESS;
@@ -258,7 +262,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the torque control limits
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         torque_control_limits_message[ii].Command =
             SEND_TORQUE_CONTROL_LIMITS;
         torque_control_limits_message[ii].SourceAddress = SOURCE_ADDRESS;
@@ -270,7 +274,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the torque config filters
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         torque_config_filters_message[ii].Command =
             SEND_TORQUE_CONFIG_FILTERS;
         torque_config_filters_message[ii].SourceAddress = SOURCE_ADDRESS;
@@ -284,7 +288,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     torque_config_filters_message[1].DataFloat[3] = 20.0;
 
     // Set up the torque config parameters 1
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         torque_config_parameters_message1[ii].Command = 0x214;
         torque_config_parameters_message1[ii].SourceAddress = SOURCE_ADDRESS;
         torque_config_parameters_message1[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -295,7 +299,7 @@ Jaco2::Jaco2(int a_display_error_level) {
     }
 
     // Set up the torque config parameters 2
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         torque_config_parameters_message2[ii].Command =
             SEND_TORQUE_CONFIG_CONTROL_PARAM_2;
         torque_config_parameters_message2[ii].SourceAddress = SOURCE_ADDRESS;
@@ -306,7 +310,7 @@ Jaco2::Jaco2(int a_display_error_level) {
         torque_config_parameters_message2[ii].DataFloat[3] = 0.0;  // torque_brake;
     }
     // Set up the send Ki and Kd message
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         kd_ki_gains[ii].Command = SEND_ID_GAINS;
         kd_ki_gains[ii].SourceAddress = SOURCE_ADDRESS;
         kd_ki_gains[ii].DestinationAddress = JOINT_ADDRESS[ii];
@@ -330,6 +334,7 @@ void Jaco2::Connect() {
     else{
         cout << "Using Unknown Force Command: " << RS485_MSG_SEND_POSITION_AND_TORQUE_COMMAND << endl;
     }
+   
     log_msg(1, "Initializing RS-485 Communication...");
     //Flag used during initialization.
     int result;
@@ -377,13 +382,15 @@ void Jaco2::Disconnect() {
 
 void Jaco2::InitPositionMode() {
     log_msg(1, "Initializing position control mode...");
-    // log_msg(1, "STEP 6.5/8: Setting ki and kd gains...");
+    //log_msg(1, "STEP 6.5/8: Setting ki and kd gains...");
     // SendAndReceive(kd_ki_gains, false);
     SendAndReceive(init_position_message, true);
     log_msg(2, "Position control mode activated");
 }
 
 void Jaco2::InitForceMode() {
+    try
+    {
     // STEP 1: Get current position
     log_msg(1, "Initializing force mode");
     log_msg(1, "STEP 1/8: Getting current position...");
@@ -422,12 +429,12 @@ void Jaco2::InitForceMode() {
     // SendAndReceive(kd_ki_gains, false);
 
     int joints_updated0 = 0;
-    while (joints_updated0 < 6) {
+    while (joints_updated0 < 7) {
         // STEP 6: Send torque values to compare with sensor readings
         log_msg(1, "STEP 7/8: Checking torque sensor calibration...");
         int joints_updated1 = 0;
-        while(joints_updated1 < 6) {
-            for (int ii=0; ii<6; ii++) {
+        while(joints_updated1 < 7) {
+            for (int ii=0; ii<7; ii++) {
                 test_torques_message[ii].DataFloat[0] = pos[ii];
                 // NOTE: doc said is float, but getting torque errs
                 // test_torques_message[ii].DataFloat[1] = torque_load[ii];
@@ -444,25 +451,31 @@ void Jaco2::InitForceMode() {
     }
 
     log_msg(2, "Force control mode activated");
+    }
+    catch (const std::exception& ex)
+    {
+        log_msg(4, {"Exception caught in InitForceMode: %s", ex.what()});
+    }
 }
 
 void Jaco2::SendTargetAnglesSetup() {
     SendAndReceive(get_position_message, true);
-    for (int ii = 0; ii<6; ii++) {
+    for (int ii = 0; ii<7; ii++) {
         target_angle[ii] = pos[ii];
         target_angles_message[ii].DataFloat[0] = target_angle[ii];
         target_angles_message[ii].DataFloat[1] = target_angle[ii];
+        log_msg(2, "Initial position of joint " + to_string(ii+1) + " is " + to_string(pos[ii]));
     }
 }
 
-int Jaco2::SendTargetAngles(float q_target[6]) {
+int Jaco2::SendTargetAngles(float q_target[7]) {
     int TargetReached = 0;
     float mod_pos;
     float q_diff;
 
     // increment joint command by 1 degree until target reached
     TargetReached = 0;
-    for (int ii = 0; ii<6; ii++) {
+    for (int ii = 0; ii<7; ii++) {
         mod_pos = (int(pos[ii]) % 360 + 360) % 360 ;
         pos_rad[ii] = mod_pos * 3.14159 / 180.0;
         q_diff = q_target[ii] - mod_pos;
@@ -479,7 +492,7 @@ int Jaco2::SendTargetAngles(float q_target[6]) {
         }
         if (ctr % 1000 == 0) {
             char buffer [100];
-            sprintf(buffer, "Actuator: %d position is: %f with target: %f mod 360: %f",
+            sprintf(buffer, "Actuator: %d (+1) position is: %f with target: %f mod 360: %f",
                     ii, pos[ii], q_target[ii], mod_pos);
             log_msg(1, buffer);
         }
@@ -512,9 +525,9 @@ void Jaco2::SendTargetAnglesHand(bool open) {
 }
 
 // Wraps the set of input torques u up into a message and sends it to the Jaco2
-void Jaco2::SendForces(float u[6]) {
+void Jaco2::SendForces(float u[7]) {
     // load the torque signal into outbound message
-    for (int ii=0; ii<6; ii++) {
+    for (int ii = 0; ii < 7; ii++) {
         force_message[ii].DataFloat[0] = pos[ii];
         force_message[ii].DataFloat[2] = u[ii]; //32F torque command [1Nm]
 
@@ -523,9 +536,9 @@ void Jaco2::SendForces(float u[6]) {
     //cout << "sending message" << endl;
     MyRS485_Write(force_message, packets_sent, write_count);
     updated_sum = 0;
-    memset(updated, 0, (size_t)sizeof(int)*6);
+    memset(updated, 0, (size_t)sizeof(int)*7);
 
-    usleep(1250); // TODO: EXPERIMENT WITH DIFFERENT DELAY
+    usleep(1500); // TODO: EXPERIMENT WITH DIFFERENT DELAY
 
     MyRS485_Read(feedback_message, packets_read, read_count);
 
@@ -536,11 +549,12 @@ void Jaco2::SendForces(float u[6]) {
     // reduced processing here rather than through ProcessFeedback for speed.
     // NOTE: torque_load is not updated while reading this feedback
     // NOTE: should be able to work out condition to stop reading through
-    // feedback messages when 6 unique motor feedback messages have been read
+    // feedback messages when 7 unique motor feedback messages have been read
     for(int ii = 0; ii < read_count; ii++) {
         if(feedback_message[ii].Command == RS485_MSG_SEND_ALL_VALUES_1) {
-            //actuator 0 is 16
+            //actuator 1 is 16
             current_motor = feedback_message[ii].SourceAddress - 16;
+            if (current_motor == (25-16)){current_motor = 6;} // joint 7, which abr calls 6,is address 25
             if (updated[current_motor] == 0) {
                 pos[current_motor] = feedback_message[ii].DataFloat[1];
                 vel[current_motor] = feedback_message[ii].DataFloat[2];
@@ -562,20 +576,21 @@ void Jaco2::SendForces(float u[6]) {
 // and has the option to loop repeatedly until message returns successfully
 // for each of the motors. Returns the number of motors message
 // was successfully sent to and received from.
-int Jaco2::SendAndReceive(RS485_Message message[6], bool loop) {
+int Jaco2::SendAndReceive(RS485_Message message[7], bool loop) {
     int joints_updated = 0;
-    while(joints_updated < 6) {
+    while(joints_updated < 7) {
         joints_updated = 0;
         MyRS485_Write(message, packets_sent, write_count);
         usleep(delay);
         MyRS485_Read(feedback_message, packets_read, read_count);
         ProcessFeedback();
-
-        for (int ii = 0; ii < 6; ii++) {
+        
+        for (int ii = 0; ii < 7; ii++) {
             joints_updated += updated[ii];
-            if (updated[ii] == 0) {
+            if (updated[ii] == 0) 
+            {
                 char buffer [100];
-                sprintf(buffer, "Data for joint %d not updated, checking again...", ii);
+                sprintf(buffer, "Data for joint %d not updated (%d), checking again...", ii+1, updated[ii]);
                 log_msg(1, buffer);
             }
         }
@@ -614,7 +629,7 @@ int Jaco2::SendAndReceiveHand(RS485_Message message[3], bool loop) {
             hand_updated += updated_hand[ii];
             if (updated_hand[ii] == 0) {
                 char buffer [100];
-                sprintf(buffer, "Data for finger %d not updated, checking again...", ii);
+                sprintf(buffer, "Data for finger %d not updated, checking again...", ii+1);
                 log_msg(1, buffer);
             }
         }
@@ -634,7 +649,7 @@ int Jaco2::SendAndReceiveHand(RS485_Message message[3], bool loop) {
 void Jaco2::ProcessFeedback() {
 
     // reset variables for this time through
-    memset(updated, 0, (size_t)sizeof(int)*6);
+    memset(updated, 0, (size_t)sizeof(int)*7);
     // buffer for error logging
     char buffer [100];
     // cycle through all of the received messages and
@@ -642,8 +657,10 @@ void Jaco2::ProcessFeedback() {
     for(int ii = 0; ii < read_count; ii++) {
         // actuator 0 is 16
         current_motor = feedback_message[ii].SourceAddress - 16;
-        if (current_motor > 5) {
-            log_msg(1, "Joint feedback received for unknown joint");
+        if (current_motor == (25-16)){current_motor = 6;} // joint 7, which abr calls 6, is address 25
+        if (current_motor > 7){
+            std::string msg = "Joint feedback received for unknown joint " + std::to_string(current_motor);
+            log_msg(1, msg);
             continue;
         }
 
@@ -681,20 +698,20 @@ void Jaco2::ProcessFeedback() {
 
                     case 0:
                         sprintf(buffer, "Torque validation False for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]);
                         log_msg(1, buffer);
                         break;
 
                     case 1:
                         sprintf(buffer, "Torque validation True for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]);
                         log_msg(1, buffer);
                         updated[current_motor] = 1;
                         break;
 
                     default:
                         sprintf(buffer, "Torque validation not received for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]);
                         log_msg(1, buffer);
                 }
 
@@ -706,20 +723,20 @@ void Jaco2::ProcessFeedback() {
 
                     case 0:
                         sprintf(buffer, "Switch control mode False for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]); //+1 makes motor number human readable
                         log_msg(1, buffer);
                         break;
 
                     case 1:
                         sprintf(buffer, "Switch control mode to Position control True for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]); //+1 makes motor number human readable
                         log_msg(1, buffer);
                         updated[current_motor] = 1;
                         break;
 
                     case 257:
                         sprintf(buffer, "Switch control mode to Force control True for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]);
                         log_msg(1, buffer);
                         // TODO: should we not have updated and update2 to
                         // specify which modes we switched to? look into this
@@ -728,7 +745,7 @@ void Jaco2::ProcessFeedback() {
 
                     default:
                         sprintf(buffer, "No response to control mode switch request for servo %d, Response: %u",
-                                current_motor, feedback_message[ii].DataLong[0]);
+                                current_motor+1, feedback_message[ii].DataLong[0]); //+1 makes motor number human readable
                         log_msg(1, buffer);
                 }
                 break;
@@ -736,7 +753,7 @@ void Jaco2::ProcessFeedback() {
             case GET_TORQUE_CONFIG_SAFETY:
 
                 updated[current_motor] = 1;
-                sprintf(buffer, "Torque config safety test passed for servo %d", current_motor);
+                sprintf(buffer, "Torque config safety test passed for servo %d", current_motor+1); //+1 makes motor number human readable
                 log_msg(1, buffer);
                 break;
         }
@@ -748,7 +765,7 @@ void Jaco2::ProcessFeedback() {
 void Jaco2::PrintError(int index, int current_motor) {
     char buffer [100];
     sprintf(buffer, "Message: %u %s for motor %d", feedback_message[index].DataLong[1],
-            error_message[feedback_message[index].DataLong[1]].c_str(), current_motor);
+            error_message[feedback_message[index].DataLong[1]].c_str(), current_motor+1); //+1 makes motor number human readable
     log_msg(4, buffer);
 }
 

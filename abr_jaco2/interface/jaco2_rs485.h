@@ -51,40 +51,40 @@ class Jaco2 {
     public:
         static const unsigned char CONTROL_MODE;
         static const unsigned char HAND_ADDRESS[3];
-        static const float MAX_TORQUE[6];
-        static const unsigned char JOINT_ADDRESS[6];
-        static const unsigned char TORQUE_DAMPING[6];
-        static const short TORQUE_KP[6];
-        static const short TORQUE_KI[6];
-        static const short TORQUE_KD[6];
+        static const float MAX_TORQUE[7];
+        static const unsigned char JOINT_ADDRESS[7];
+        static const unsigned char TORQUE_DAMPING[7];
+        static const short TORQUE_KP[7];
+        static const short TORQUE_KI[7];
+        static const short TORQUE_KD[7];
 
         // RS485 arrays of structs
-        RS485_Message clear_error_message[6];
+        RS485_Message clear_error_message[7];
         RS485_Message feedback_message[50];  // TODO: does this need to be 50?
-        RS485_Message force_message[6];
+        RS485_Message force_message[7];
         RS485_Message get_position_hand_message[3];
-        RS485_Message get_position_message[6];
-        RS485_Message init_message[6];
-        RS485_Message init_position_message[6];
-        RS485_Message init_torque_message[6];
-        RS485_Message safety_message[6];
+        RS485_Message get_position_message[7];
+        RS485_Message init_message[7];
+        RS485_Message init_position_message[7];
+        RS485_Message init_torque_message[7];
+        RS485_Message safety_message[7];
         RS485_Message target_angles_hand_message[3];
-        RS485_Message target_angles_message[6];
-        RS485_Message test_torques_message[6];
-        RS485_Message torques_config_feedforward_advanced_message[6];
-        RS485_Message torque_config_filters_message[6];
-        RS485_Message torque_config_parameters_message1[6];
-        RS485_Message torque_config_parameters_message2[6];
-        RS485_Message torque_control_limits_message[6];
-        RS485_Message kd_ki_gains[6];
+        RS485_Message target_angles_message[7];
+        RS485_Message test_torques_message[7];
+        RS485_Message torques_config_feedforward_advanced_message[7];
+        RS485_Message torque_config_filters_message[7];
+        RS485_Message torque_config_parameters_message1[7];
+        RS485_Message torque_config_parameters_message2[7];
+        RS485_Message torque_control_limits_message[7];
+        RS485_Message kd_ki_gains[7];
 
         // misc variables
         int current_motor;
         int delay;
         int updated_sum;
         vector<string> error_message;
-        int updated[6]; // for switching to torque mode
-        int updated2[6]; // for switching to position mode
+        int updated[7]; // for switching to torque mode
+        int updated2[7]; // for switching to position mode
         int updated_hand[3];
         string datetime;
         int display_error_level;
@@ -93,11 +93,11 @@ class Jaco2 {
         string log_save_location;
 
         // read variables
-        float pos[6]; // from Halls sensor
+        float pos[7]; // from Halls sensor
         float pos_finger[3];
-        float pos_rad[6];
-        float torque_load[6];
-        float vel[6];
+        float pos_rad[7];
+        float torque_load[7];
+        float vel[7];
 
         // torque variables
 
@@ -106,7 +106,7 @@ class Jaco2 {
         int packets_sent;
         int read_count;
         int write_count;
-        float target_angle[6];
+        float target_angle[7];
         int ctr;  // counter for printing occasionally
 
         // function pointers to Kinova API
@@ -121,10 +121,10 @@ class Jaco2 {
         void Disconnect();
         void InitForceMode();
         void InitPositionMode();
-        int SendAndReceive(RS485_Message message[6], bool loop);
+        int SendAndReceive(RS485_Message message[7], bool loop);
         int SendAndReceiveHand(RS485_Message message[3], bool loop);
-        void SendForces(float u[6]);
-        int SendTargetAngles(float q_target[6]);
+        void SendForces(float u[7]);
+        int SendTargetAngles(float q_target[7]);
         void SendTargetAnglesSetup();
         void SendTargetAnglesHand(bool open);
         void PrintError(int index, int current_motor);
